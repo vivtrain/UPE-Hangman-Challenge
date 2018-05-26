@@ -7,7 +7,8 @@ from collections import OrderedDict
 
 url = "http://upe.42069.fun/Bhocy"
 email = "vivekkumar@g.ucla.edu"
-dictionary = "10k.txt"
+dictionary = "lyricdict.txt"
+alphabet = "abcdefghijklmnopqrstuvwxyz"
 
 def main():
   try: # to catch Ctrl-C and suppress Traceback
@@ -20,6 +21,10 @@ def main():
       hm_response = requests.get(url)
       hm_data = hm_response.json()
       print hm_data
+      guessedLetters = dict()
+      for l in alphabet:
+        guessedLetters[l] = 0
+
       # Guessing
       while (hm_data["status"] == "ALIVE"):
 
@@ -49,14 +54,19 @@ def main():
 
         # Pick the word with most known leters
         for w in words:
+          yetUnknown = False
           for l in w:
-            if l != '_' and l.isalpha():
+            if l == '_':
+              # print "found ", l, " in ", w
+              yetUnknown = True
+            if l != '_' and l.isalpha() and yetUnknown:
               words[w] = words[w] + 1
+            if not yetUnknown:
+              words[w] = -1
         print words
         maxknownlets = -1
         maxknownword = ""
         for w in words.keys():
-          print w, words[w], maxknownlets
           if words[w] > maxknownlets:
             maxknownlets = words[w]
             maxknownword = w
@@ -65,13 +75,18 @@ def main():
         profile = Letter_Freq_Map(dictionary, maxknownword)
         print(">> profile of: " + maxknownword)
 
-        # Use the profile to generate a guesser
+        # Use the profile to generate a guesse
         guesser = Letter_Guesser(profile)
 
         # Guess a letter
-        letter = guesser.guess_letter()
+        guess = guesser.guess_letter()
+        while guessedLetters[guess] == 1:
+          guess = guesser.guess_letter()
+          print "try again ", guess
+        print ">> guessing: ", guess
+        guessedLetters[guess] = 1
         hm_response = requests.post(url, \
-          data={"guess" : letter})
+          data={"guess" : guess})
         hm_data = hm_response.json()
 
         # Don't die the server
@@ -79,6 +94,8 @@ def main():
       print "\n"
       print hm_data["status"]
       print hm_data["lyrics"]
+      with open("gatheredlyrics.txt", "a") as myfile:
+          myfile.write(hm_data["lyrics"] + '\n')
       print "\n\n"
 
   except KeyboardInterrupt:
@@ -88,7 +105,7 @@ def main():
 class Letter_Freq_Map:
   def __init__(self, filename, curword):
     self.freq_map = dict()
-    for i in "abcdefghijklmnopqrstuvwxyz":
+    for i in alphabet:
       self.freq_map[i] = 0
 
     f = open(filename)
@@ -102,9 +119,12 @@ class Letter_Freq_Map:
           match = False
           break
         if match:
+          print word,
           words.append(word)
           for l in word:
-            self.freq_map[l] = self.freq_map[l] + 1;
+            if l.isalpha():
+              self.freq_map[l] = self.freq_map[l] + 1;
+    print ""
     if len(words) == 0:
       self.freq_map = \
       { 'e' : 12.02, 't' : 9.10, 'a' : 8.12, 'o' : 7.68,
@@ -114,10 +134,6 @@ class Letter_Freq_Map:
         'w' :  2.09, 'g' : 2.03, 'p' : 1.82, 'b' : 1.49,
         'v' :  1.11, 'k' : 0.69, 'x' : 0.17, 'q' : 0.11,
         'j' :  0.10, 'z' : 0.07 }
-
-  def combine(self, other):
-    for letter in self.freq_map:
-      self.freq_map[letter] = self.freq_map[letter] + other.freq_map[letter]
 
 
 class Letter_Guesser:
@@ -139,11 +155,12 @@ class Letter_Guesser:
         guess = letter
         break
 
+    """
     for letter, freq in self.letter_profile.freq_map.items():
       self.letter_profile.freq_map[letter] = \
         round(freq / float(cursum - self.letter_profile.freq_map[guess])*100, 4)
     self.letter_profile.freq_map[guess] = 0
-    print ">> guessing: " + guess
+    """
     return guess
 
 if __name__ == "__main__":
